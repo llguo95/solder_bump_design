@@ -8,6 +8,9 @@ from sklearn.preprocessing import StandardScaler
 
 from gp import train
 
+torch.manual_seed(0)
+np.random.seed(0)
+
 if __name__ == "__main__":
     df_data = pd.read_csv("datasets/solder_ball_conc.csv", header=0, index_col=0)
 
@@ -39,25 +42,43 @@ if __name__ == "__main__":
     X_scaled = torch.tensor((X - X_bounds[:, 0]) / (X_bounds[:, 1] - X_bounds[:, 0]))
 
     # y = np.sum(X**2, 1)[:, None]
-    y = df_data["min_conc"].values[:, None]
+    y = df_data["max_conc"].values[:, None]
     scaler = StandardScaler()
     y_scaled = torch.tensor(scaler.fit_transform(y))
 
     # model, likelihood = train(X_scaled=X_scaled, y_scaled=y_scaled, training_iter=500)
 
+    # mse_naive = torch.mean(y_scaled.flatten() ** 2)
+    # print("Naive", mse_naive.item())
+
     test_idx_list = []
     train_idx_list = []
 
-    for i in range(10):
-        test_idx = np.arange(5 * i, 5 * (i + 1))
-        train_idx = np.delete(np.arange(100), test_idx)
+    cv = True
 
+    if cv:
+        folds = 10
+        n_per_fold = len(X) // folds
+
+        val_idx = np.arange(len(X) - n_per_fold, len(X))
+
+        for fold in range(folds - 1):
+            test_idx = np.arange(n_per_fold * fold, n_per_fold * (fold + 1))
+            train_idx = np.delete(np.arange(len(X)), np.hstack((test_idx, val_idx)))
+
+            test_idx_list.append(test_idx)
+            train_idx_list.append(train_idx)
+    else:
+        test_idx = np.arange(len(X) - 10, len(X))
         test_idx_list.append(test_idx)
-        train_idx_list.append(train_idx)
+        train_idx_list.append(np.delete(np.arange(len(X)), test_idx))
 
     kernel_class_list = [MaternKernel, RBFKernel, RQKernel]
 
     for kernel_class in kernel_class_list:
+        mse_min = torch.inf
+        model_best = None
+        train_idx_best = None
         for fold, (train_idx, test_idx) in enumerate(
             zip(train_idx_list, test_idx_list)
         ):
@@ -67,9 +88,9 @@ if __name__ == "__main__":
                 # X_scaled=X_scaled,
                 # y_scaled=y_scaled,
                 kernel_class=kernel_class,
-                # uniform=False,
+                uniform=False,
                 training_iter=100,
-                noisy=False,
+                # noisy=False,
                 # random_restart=False,
             )
 
@@ -83,13 +104,33 @@ if __name__ == "__main__":
 
             mse = torch.mean((observed_pred.mean - y_scaled[test_idx].flatten()) ** 2)
             # mse = torch.mean((observed_pred.mean - y_scaled.flatten()) ** 2)
-            print(kernel_class.__name__, fold, mse.item())
+
+            if mse < mse_min:
+                print(kernel_class.__name__, fold, mse.item())
+                model_best = model
+                train_idx_best = train_idx
+                mse_min = mse.item()
+
+        model_best.eval()
+        with torch.no_grad(), gpytorch.settings.fast_pred_var():
+            observed_pred = likelihood(model_best(X_scaled))
+            # observed_pred = likelihood(model_best(X_scaled[test_idx]))
+            # observed_pred = likelihood(model_best(X_scaled[val_idx]))
+            # observed_pred = likelihood(model_best(X_scaled[train_idx_best]))
+
+        mse_val = torch.mean((observed_pred.mean - y_scaled.flatten()) ** 2)
+        # mse_val = torch.mean((observed_pred.mean - y_scaled[test_idx].flatten()) ** 2)
+        # mse_val = torch.mean((observed_pred.mean - y_scaled[val_idx].flatten()) ** 2)
+        # mse_val = torch.mean(
+        #     (observed_pred.mean - y_scaled[train_idx_best].flatten()) ** 2
+        # )
+        print(kernel_class.__name__, "val", mse_val.item())
 
     # plt.show()
 
-    for fold, (train_idx, test_idx) in enumerate(zip(train_idx_list, test_idx_list)):
-        mse = torch.mean(y_scaled[test_idx].flatten() ** 2)
-        print("Naive", fold, mse.item())
+    # for fold, (train_idx, test_idx) in enumerate(zip(train_idx_list, test_idx_list)):
+    #     mse = torch.mean(y_scaled[test_idx].flatten() ** 2)
+    #     print("Naive", fold, mse.item())
 
     pass
 

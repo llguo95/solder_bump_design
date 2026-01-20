@@ -81,12 +81,16 @@ def train(
                         model, name, torch.nn.Parameter(torch.randn_like(parameter))
                     )
 
-        model_min_loss = model
-        likelihood_min_loss = likelihood
+        model_min_loss = copy.deepcopy(model)
+        likelihood_min_loss = copy.deepcopy(likelihood)
         # training_iter = 1
 
         # model.covar_module.base_kernel.raw_lengthscale_constraint = (
-        #     gpytorch.constraints.GreaterThan(5e-1)
+        #     gpytorch.constraints.Interval(1.0, 1.001)
+        # )
+
+        # model.covar_module.raw_outputscale_constraint = gpytorch.constraints.Interval(
+        #     1.0, 1.001
         # )
 
         # Find optimal model hyperparameters
