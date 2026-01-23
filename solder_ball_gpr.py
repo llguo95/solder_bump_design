@@ -8,13 +8,49 @@ from sklearn.preprocessing import StandardScaler
 
 from gp import train
 
-torch.manual_seed(0)
-np.random.seed(0)
+torch.manual_seed(1)
+np.random.seed(1)
 
 if __name__ == "__main__":
     df_data = pd.read_csv("datasets/solder_ball_conc.csv", header=0, index_col=0)
 
-    sns.pairplot(df_data)
+    x_vars = [
+        "d_pad",
+        "t_pad",
+        "d_us",
+        "d_rep1",
+        "t_ubm",
+        "del_d",
+        "h_ball",
+    ]
+
+    g = sns.pairplot(
+        df_data,
+        x_vars=x_vars,
+        y_vars=["max_conc"],
+        height=1.5,
+        aspect=0.75,
+        plot_kws={"s": 10},
+    )
+
+    g.set(ylabel="Max conc")
+    x_labels = [
+        "$d_{pad}$",
+        "$t_{pad}$",
+        "$d_{us}$",
+        "$d_{rep1}$",
+        "$t_{ubm}$",
+        "$d_{del}$",
+        "$h_{ball}$",
+    ]
+    for i, ax in enumerate(g.axes.flatten()):
+        ax.set_xlabel(x_labels[i])
+
+    # g.savefig(
+    #     "C:\\Users\\leoli\\Documents\\GitHub\\Dissertation-draft\\img\\applications\\solderball\\solderball_data.svg"
+    # )
+
+    # plt.show()
 
     X = df_data[
         [
@@ -57,7 +93,7 @@ if __name__ == "__main__":
     folds = 10
     n_per_fold = len(X) // folds
 
-    cv = False
+    cv = True
 
     if cv:
         val_idx = np.arange(len(X) - n_per_fold, len(X))
@@ -94,7 +130,7 @@ if __name__ == "__main__":
                 kernel_class=kernel_class,
                 uniform=False,
                 training_iter=100,
-                noisy=False,
+                # noisy=False,
                 # random_restart=False,
             )
 
@@ -115,6 +151,15 @@ if __name__ == "__main__":
                 train_idx_best = train_idx
                 mse_min = mse.item()
 
+                if cv:
+                    with torch.no_grad(), gpytorch.settings.fast_pred_var():
+                        observed_pred = likelihood(model(X_scaled[val_idx]))
+                        # observed_pred = likelihood(model(X_scaled))
+
+                    mse_val = torch.mean(
+                        (observed_pred.mean - y_scaled[val_idx].flatten()) ** 2
+                    )
+                    print(kernel_class.__name__, fold, "(val)", mse_val.item())
         for (
             name,
             parameter,
@@ -124,10 +169,10 @@ if __name__ == "__main__":
 
         model_best.eval()
         if cv:
-            X_scaled_val = X_scaled[val_idx]
-            y_scaled_val = y_scaled[val_idx]
-            # X_scaled_val = X_scaled
-            # y_scaled_val = y_scaled
+            # X_scaled_val = X_scaled[val_idx]
+            # y_scaled_val = y_scaled[val_idx]
+            X_scaled_val = X_scaled
+            y_scaled_val = y_scaled
         else:
             X_scaled_val = X_scaled
             y_scaled_val = y_scaled
@@ -145,8 +190,6 @@ if __name__ == "__main__":
         #     (observed_pred.mean - y_scaled[train_idx_best].flatten()) ** 2
         # )
         print(kernel_class.__name__, "val", mse_val.item())
-
-    # plt.show()
 
     # for fold, (train_idx, test_idx) in enumerate(zip(train_idx_list, test_idx_list)):
     #     mse = torch.mean(y_scaled[test_idx].flatten() ** 2)
