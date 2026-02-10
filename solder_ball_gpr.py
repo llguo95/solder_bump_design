@@ -4,6 +4,7 @@ import pandas as pd
 import seaborn as sns
 import torch
 from gpytorch.kernels import MaternKernel, RBFKernel, RQKernel
+from matplotlib import pyplot as plt
 from sklearn.preprocessing import StandardScaler
 
 from gp import train
@@ -33,11 +34,11 @@ if __name__ == "__main__":
         plot_kws={"s": 10},
     )
 
-    g.set(ylabel="Max conc")
+    g.set(ylabel="Max. conc.")
     x_labels = [
         "$d_{pad}$",
         "$t_{pad}$",
-        "$d_{us}$",
+        "$d_{ubm}$",
         "$d_{rep1}$",
         "$t_{ubm}$",
         "$d_{del}$",
@@ -46,11 +47,13 @@ if __name__ == "__main__":
     for i, ax in enumerate(g.axes.flatten()):
         ax.set_xlabel(x_labels[i])
 
+    g.savefig("img/solderball_data.svg")
+
     # g.savefig(
     #     "C:\\Users\\leoli\\Documents\\GitHub\\Dissertation-draft\\img\\applications\\solderball\\solderball_data.svg"
     # )
 
-    # plt.show()
+    plt.show()
 
     X = df_data[
         [
