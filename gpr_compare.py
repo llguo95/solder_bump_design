@@ -1,15 +1,13 @@
 import gpytorch
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
-from gpytorch.kernels import MaternKernel, RBFKernel, RQKernel
-from sklearn.preprocessing import StandardScaler
-from scipy.stats.qmc import LatinHypercube
-
-from f3dasm.datageneration.functions.adapters.pybenchfunction import PyBenchFunction
 from f3dasm.datageneration.functions import *
-
-import matplotlib.pyplot as plt
+from f3dasm.datageneration.functions.adapters.pybenchfunction import PyBenchFunction
+from gpytorch.kernels import MaternKernel, RBFKernel, RQKernel
+from scipy.stats.qmc import LatinHypercube
+from sklearn.preprocessing import StandardScaler
 
 from gp import train
 
@@ -58,69 +56,6 @@ class AlpineN2(PyBenchFunction):
 if __name__ == "__main__":
     df_data = pd.read_csv("datasets/solder_ball_conc.csv", header=0, index_col=0)
 
-    # Solder ball data
-
-    # pairplot = False
-    # if pairplot:
-    #     x_vars = [
-    #         "d_pad",
-    #         "t_pad",
-    #         "d_us",
-    #         "d_rep1",
-    #         "t_ubm",
-    #         "del_d",
-    #         "h_ball",
-    #     ]
-
-    #     g = sns.pairplot(
-    #         df_data,
-    #         x_vars=x_vars,
-    #         y_vars=["max_conc"],
-    #         height=1.5,
-    #         aspect=0.75,
-    #         plot_kws={"s": 10},
-    #     )
-
-    #     g.set(ylabel="Max. conc.")
-    #     x_labels = [
-    #         "$d_{pad}$",
-    #         "$t_{pad}$",
-    #         "$d_{ubm}$",
-    #         "$d_{rep1}$",
-    #         "$t_{ubm}$",
-    #         "$d_{del}$",
-    #         "$h_{ball}$",
-    #     ]
-    #     for i, ax in enumerate(g.axes.flatten()):
-    #         ax.set_xlabel(x_labels[i])
-
-    #     g.savefig("img/solderball_data.svg")
-
-    #     plt.show()
-
-    # X = df_data[
-    #     [
-    #         "d_pad",
-    #         "t_pad",
-    #         "d_us",
-    #         "d_rep1",
-    #         "t_ubm",
-    #         "del_d",
-    #         "h_ball",
-    #     ]
-    # ].values
-
-    # X_bounds = np.array(
-    #     [
-    #         [150.0, 180.0],
-    #         [15.0, 30.0],
-    #         [180.0, 220.0],
-    #         [30.0, 160.0],
-    #         [5.0, 15.0],
-    #         [10.0, 40.0],
-    #         [130.0, 165.0],
-    #     ]
-    # )
     data_dimensionality = 1
     data_size = 10
     folds = 5
@@ -175,9 +110,11 @@ if __name__ == "__main__":
 
     kernel_class_list = [MaternKernel, RBFKernel, RQKernel]
 
-    legend_plotted = False
     for model_noisy in [True, False]:
-        for kernel_class in kernel_class_list:
+        fig, axs = plt.subplots(ncols=1, nrows=3, figsize=(7, 6), sharex=True)
+        legend_plotted = False
+
+        for kernel_no, kernel_class in enumerate(kernel_class_list):
             print()
             mse_min = torch.inf
             model_best = None
@@ -271,12 +208,11 @@ if __name__ == "__main__":
 
             # Plot predictions
             with torch.no_grad():
-                fig, ax = plt.subplots(figsize=(8, 3))
-
+                ax = axs[kernel_no]
                 ax.plot(
                     X_scaled_plot,
                     scaler.transform(data_fun(input_x=X_scaled_plot[:, None])),
-                    label="True function",
+                    label="Objective",
                     color="black",
                     linestyle="--",
                 )
@@ -284,37 +220,38 @@ if __name__ == "__main__":
                 ax.scatter(
                     X_scaled[train_idx_best],
                     y_scaled[train_idx_best],
-                    label="Training data points",
+                    label="Training data",
                 )
 
                 ax.scatter(
                     X_scaled[test_idx_best],
                     y_scaled[test_idx_best],
-                    label="Test data points",
+                    label="Test data",
                     marker="*",
                 )
 
-                p = ax.plot(
-                    X_scaled_plot, observed_pred_plot.mean, label="Predicted mean"
-                )
+                p = ax.plot(X_scaled_plot, observed_pred_plot.mean, label="Pred. mean")
                 color = p[0].get_color()
                 ax.fill_between(
                     X_scaled_plot.flatten(),
                     observed_pred_plot.mean - 2 * observed_pred_plot.stddev,
                     observed_pred_plot.mean + 2 * observed_pred_plot.stddev,
                     alpha=0.2,
-                    label="Uncertainty",
+                    label="Pred. 95% CI",
                     color=color,
                 )
-                ax.set_xlabel("x")
                 ax.set_ylabel("y")
                 if not legend_plotted:
-                    ax.legend()
+                    ax.legend(loc="upper left", fontsize="x-small", ncols=5)
                     legend_plotted = True
-                ax.set_title(
-                    f"{kernel_class.__name__} - {['noiseless', 'noisy'][model_noisy]}"
-                )
-                fig.tight_layout()
+                ax.set_title(f"{kernel_class.__name__}")
+                if kernel_no == 2:
+                    ax.set_xlabel("x")
+        fig.tight_layout()
+
+        fig.savefig(
+            f"C:\\Users\\guol\\Documents\\Misc\\PhD\\package_stress\\img\\AlpineN2_{['noiseless', 'noisy'][model_noisy]}.svg"
+        )
 
     # for fold, (train_idx, test_idx) in enumerate(zip(train_idx_list, test_idx_list)):
     #     mse = torch.mean(y_scaled[test_idx].flatten() ** 2)
