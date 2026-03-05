@@ -57,18 +57,23 @@ if __name__ == "__main__":
     df_data = pd.read_csv("datasets/solder_ball_conc.csv", header=0, index_col=0)
 
     data_dimensionality = 1
-    data_size = 10
-    folds = 5
+    data_size = 20
+    folds = 4
 
-    data_bounds = np.tile([0.0, 1.0], (data_dimensionality, 1))
+    data_bounds = np.tile([-500, 500], (data_dimensionality, 1))
 
     data_sampler = LatinHypercube(d=data_dimensionality, scramble=False, rng=rng)
-    X = data_sampler.random(n=data_size)
+    X = (
+        data_sampler.random(n=data_size) * (data_bounds[:, 1] - data_bounds[:, 0])
+        + data_bounds[:, 0]
+    )
     X_scaled = torch.tensor(
         (X - data_bounds[:, 0]) / (data_bounds[:, 1] - data_bounds[:, 0])
     )
 
-    data_fun = AlpineN2(dimensionality=data_dimensionality, scale_bounds=data_bounds)
+    data_fun = Schwefel(
+        dimensionality=data_dimensionality, scale_bounds=data_bounds, offset=False
+    )
     y = data_fun(input_x=X)
 
     scaler = StandardScaler()
@@ -87,7 +92,7 @@ if __name__ == "__main__":
 
     n_per_fold = len(X) // folds
 
-    cv = True
+    cv = False
 
     if cv:
         val_idx = np.arange(len(X) - n_per_fold, len(X))
@@ -206,36 +211,48 @@ if __name__ == "__main__":
                 mse_val.item(),
             )
 
+            X_plot = (
+                X_scaled_plot.detach().numpy() * (data_bounds[:, 1] - data_bounds[:, 0])
+                + data_bounds[:, 0]
+            )
+            y_plot = scaler.inverse_transform(observed_pred_plot.mean[:, None])
+            lb = scaler.inverse_transform(
+                (observed_pred_plot.mean - 2 * observed_pred_plot.stddev)[:, None]
+            )
+            ub = scaler.inverse_transform(
+                (observed_pred_plot.mean + 2 * observed_pred_plot.stddev)[:, None]
+            )
+
             # Plot predictions
             with torch.no_grad():
                 ax = axs[kernel_no]
                 ax.plot(
-                    X_scaled_plot,
-                    scaler.transform(data_fun(input_x=X_scaled_plot[:, None])),
+                    X_plot,
+                    data_fun(input_x=X_plot[:, None]),
                     label="Objective",
                     color="black",
                     linestyle="--",
                 )
 
                 ax.scatter(
-                    X_scaled[train_idx_best],
-                    y_scaled[train_idx_best],
+                    X[train_idx_best],
+                    y[train_idx_best],
                     label="Training data",
                 )
 
                 ax.scatter(
-                    X_scaled[test_idx_best],
-                    y_scaled[test_idx_best],
+                    X[test_idx_best],
+                    y[test_idx_best],
                     label="Test data",
                     marker="*",
                 )
 
-                p = ax.plot(X_scaled_plot, observed_pred_plot.mean, label="Pred. mean")
+                p = ax.plot(X_plot, y_plot, label="Pred. mean")
                 color = p[0].get_color()
                 ax.fill_between(
-                    X_scaled_plot.flatten(),
-                    observed_pred_plot.mean - 2 * observed_pred_plot.stddev,
-                    observed_pred_plot.mean + 2 * observed_pred_plot.stddev,
+                    X_plot.flatten(),
+                    lb.flatten(),
+                    ub.flatten(),
                     alpha=0.2,
                     label="Pred. 95% CI",
                     color=color,
@@ -250,7 +267,7 @@ if __name__ == "__main__":
         fig.tight_layout()
 
         fig.savefig(
-            f"C:\\Users\\guol\\Documents\\Misc\\PhD\\package_stress\\img\\AlpineN2_{['noiseless', 'noisy'][model_noisy]}.svg"
+            f"C:\\Users\\guol\\Documents\\Misc\\PhD\\package_stress\\img\\Schwefel_{['noiseless', 'noisy'][model_noisy]}.svg"
         )
 
     # for fold, (train_idx, test_idx) in enumerate(zip(train_idx_list, test_idx_list)):
