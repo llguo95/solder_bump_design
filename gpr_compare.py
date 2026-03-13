@@ -266,9 +266,9 @@ if __name__ == "__main__":
                     ax.set_xlabel("x")
         fig.tight_layout()
 
-        fig.savefig(
-            f"C:\\Users\\guol\\Documents\\Misc\\PhD\\package_stress\\img\\Schwefel_{['noiseless', 'noisy'][model_noisy]}.svg"
-        )
+        # fig.savefig(
+        #     f"C:\\Users\\guol\\Documents\\Misc\\PhD\\package_stress\\img\\Schwefel_{['noiseless', 'noisy'][model_noisy]}.svg"
+        # )
 
     # for fold, (train_idx, test_idx) in enumerate(zip(train_idx_list, test_idx_list)):
     #     mse = torch.mean(y_scaled[test_idx].flatten() ** 2)
