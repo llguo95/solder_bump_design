@@ -115,7 +115,10 @@ if __name__ == "__main__":
 
     kernel_class_list = [MaternKernel, RBFKernel, RQKernel]
 
-    for model_noisy in [True, False]:
+    for model_noisy in [
+        True,
+        False,
+    ]:
         fig, axs = plt.subplots(ncols=1, nrows=3, figsize=(7, 6), sharex=True)
         legend_plotted = False
 
@@ -156,6 +159,11 @@ if __name__ == "__main__":
                 # mse = torch.mean((observed_pred.mean - y_scaled.flatten()) ** 2)
 
                 if mse < mse_min:
+                    # print(X[test_idx].flatten())
+                    # print(
+                    #     scaler.inverse_transform(observed_pred.mean[:, None]).flatten()
+                    # )
+                    # print(y[test_idx].flatten())
                     print(kernel_class.__name__, fold, mse.item())
                     model_best = model
                     train_idx_best = train_idx
