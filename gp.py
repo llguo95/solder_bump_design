@@ -48,7 +48,7 @@ def rgetattr(obj, name, *args):
 def train(
     X_scaled,
     y_scaled,
-    kernel_class=gpytorch.kernels.MaternKernel,
+    kernel_class=gpytorch.kernels.LinearKernel,
     training_iter=150,
     uniform: bool = True,
     noisy: bool = True,
@@ -111,8 +111,11 @@ def train(
             optimizer.zero_grad()
             # Output from model
             output = model(X_scaled)
+
+            model.double()
+
             # Calc loss and backprop gradients
-            loss = -mll(output, y_scaled.flatten())
+            loss = -mll(output, y_scaled.flatten().double())
 
             if loss.item() < min_loss:
                 model_min_loss = copy.deepcopy(model)
