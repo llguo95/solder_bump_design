@@ -1,3 +1,5 @@
+import time
+
 import gpytorch
 import numpy as np
 import pandas as pd
@@ -14,6 +16,8 @@ np.random.seed(1)
 
 if __name__ == "__main__":
     df_data = pd.read_csv("datasets/solder_ball_conc.csv", header=0, index_col=0)
+
+    print(df_data.corr())
 
     x_vars = [
         "d_pad",
@@ -47,7 +51,7 @@ if __name__ == "__main__":
     for i, ax in enumerate(g.axes.flatten()):
         ax.set_xlabel(x_labels[i])
 
-    g.savefig("img/solderball_data.svg")
+    # g.savefig("img/solderball_data.svg")
 
     # g.savefig(
     #     "C:\\Users\\leoli\\Documents\\GitHub\\Dissertation-draft\\img\\applications\\solderball\\solderball_data.svg"
@@ -115,7 +119,13 @@ if __name__ == "__main__":
             test_idx_list.append(test_idx)
             train_idx_list.append(train_idx)
 
-    kernel_class_list = [MaternKernel, RBFKernel, RQKernel]
+    kernel_class_list = [
+        MaternKernel,
+        RBFKernel,
+        RQKernel,
+    ]
+
+    start_total = time.time()
 
     for kernel_class in kernel_class_list:
         print()
@@ -125,6 +135,7 @@ if __name__ == "__main__":
         for fold, (train_idx, test_idx) in enumerate(
             zip(train_idx_list, test_idx_list)
         ):
+            start_individual = time.time()
             model, likelihood = train(
                 X_scaled=X_scaled[train_idx],
                 y_scaled=y_scaled[train_idx],
@@ -133,9 +144,11 @@ if __name__ == "__main__":
                 kernel_class=kernel_class,
                 uniform=False,
                 training_iter=100,
-                # noisy=False,
+                noisy=False,
                 # random_restart=False,
             )
+            end_individual = time.time()
+            print("Individual time:", end_individual - start_individual)
 
             # Get into evaluation (predictive posterior) mode
             model.eval()
@@ -193,6 +206,9 @@ if __name__ == "__main__":
         #     (observed_pred.mean - y_scaled[train_idx_best].flatten()) ** 2
         # )
         print(kernel_class.__name__, "val", mse_val.item())
+
+    end_total = time.time()
+    print("Total time:", end_total - start_total)
 
     # for fold, (train_idx, test_idx) in enumerate(zip(train_idx_list, test_idx_list)):
     #     mse = torch.mean(y_scaled[test_idx].flatten() ** 2)

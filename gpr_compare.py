@@ -1,3 +1,5 @@
+import time
+
 import gpytorch
 import matplotlib.pyplot as plt
 import numpy as np
@@ -115,6 +117,7 @@ if __name__ == "__main__":
 
     kernel_class_list = [MaternKernel, RBFKernel, RQKernel]
 
+    start_total = time.time()
     for model_noisy in [
         True,
         False,
@@ -133,6 +136,12 @@ if __name__ == "__main__":
             ):
                 if fold != 0:
                     continue
+
+                # import psutil
+
+                # print("CPU usage (%):", psutil.cpu_percent(interval=1))
+
+                start_individual = time.time()
                 model, likelihood = train(
                     X_scaled=X_scaled[train_idx],
                     y_scaled=y_scaled[train_idx],
@@ -144,6 +153,8 @@ if __name__ == "__main__":
                     noisy=model_noisy,
                     # random_restart=False,
                 )
+                end_individual = time.time()
+                print("Individual time:", end_individual - start_individual)
 
                 # Get into evaluation (predictive posterior) mode
                 model.eval()
@@ -282,6 +293,8 @@ if __name__ == "__main__":
     #     mse = torch.mean(y_scaled[test_idx].flatten() ** 2)
     #     print("Naive", fold, mse.item())
 
+    end_total = time.time()
+    print("Total time:", end_total - start_total)
     plt.show()
 
     pass
