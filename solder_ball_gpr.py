@@ -6,7 +6,6 @@ import pandas as pd
 import seaborn as sns
 import torch
 from gpytorch.kernels import MaternKernel, RBFKernel, RQKernel
-from matplotlib import pyplot as plt
 from sklearn.preprocessing import StandardScaler
 
 from gp import train
@@ -57,7 +56,7 @@ if __name__ == "__main__":
     #     "C:\\Users\\leoli\\Documents\\GitHub\\Dissertation-draft\\img\\applications\\solderball\\solderball_data.svg"
     # )
 
-    plt.show()
+    # plt.show()
 
     X = df_data[
         [
@@ -125,47 +124,56 @@ if __name__ == "__main__":
         RQKernel,
     ]
 
-    start_total = time.time()
+    for noisy in [True, False]:
+        start_total = time.time()
 
-    for kernel_class in kernel_class_list:
-        print()
-        mse_min = torch.inf
-        model_best = None
-        train_idx_best = None
-        for fold, (train_idx, test_idx) in enumerate(
-            zip(train_idx_list, test_idx_list)
-        ):
-            start_individual = time.time()
-            model, likelihood = train(
-                X_scaled=X_scaled[train_idx],
-                y_scaled=y_scaled[train_idx],
-                # X_scaled=X_scaled,
-                # y_scaled=y_scaled,
-                kernel_class=kernel_class,
-                uniform=False,
-                training_iter=100,
-                noisy=False,
-                # random_restart=False,
-            )
-            end_individual = time.time()
-            print("Individual time:", end_individual - start_individual)
+        for kernel_class in kernel_class_list:
+            print()
+            mse_min = torch.inf
+            model_best = None
+            train_idx_best = None
 
-            # Get into evaluation (predictive posterior) mode
-            model.eval()
-            likelihood.eval()
-            # Make predictions by feeding model through likelihood
-            with torch.no_grad(), gpytorch.settings.fast_pred_var():
-                observed_pred = likelihood(model(X_scaled[test_idx]))
-                # observed_pred = likelihood(model(X_scaled))
+            val_error_list = []
+            test_error_list = []
+            total_error_list = []
+            rpd_noise_list = []
+            for fold, (train_idx, test_idx) in enumerate(
+                zip(train_idx_list, test_idx_list)
+            ):
+                start_individual = time.time()
+                model, likelihood = train(
+                    X_scaled=X_scaled[train_idx],
+                    y_scaled=y_scaled[train_idx],
+                    # X_scaled=X_scaled,
+                    # y_scaled=y_scaled,
+                    kernel_class=kernel_class,
+                    uniform=False,
+                    training_iter=100,
+                    noisy=noisy,
+                    # random_restart=False,
+                )
+                end_individual = time.time()
+                print("Individual time:", end_individual - start_individual)
 
-            mse = torch.mean((observed_pred.mean - y_scaled[test_idx].flatten()) ** 2)
-            # mse = torch.mean((observed_pred.mean - y_scaled.flatten()) ** 2)
+                # Get into evaluation (predictive posterior) mode
+                model.eval()
+                likelihood.eval()
+                # Make predictions by feeding model through likelihood
+                with torch.no_grad(), gpytorch.settings.fast_pred_var():
+                    observed_pred = likelihood(model(X_scaled[test_idx]))
+                    # observed_pred = likelihood(model(X_scaled))
 
-            if mse < mse_min:
+                mse = torch.mean(
+                    (observed_pred.mean - y_scaled[test_idx].flatten()) ** 2
+                )
+                # mse = torch.mean((observed_pred.mean - y_scaled.flatten()) ** 2)
+
+                if mse < mse_min:
+                    model_best = model
+                    train_idx_best = train_idx
+                    mse_min = mse.item()
                 print(kernel_class.__name__, fold, mse.item())
-                model_best = model
-                train_idx_best = train_idx
-                mse_min = mse.item()
+                test_error_list.append(mse.item())
 
                 if cv:
                     with torch.no_grad(), gpytorch.settings.fast_pred_var():
@@ -176,39 +184,75 @@ if __name__ == "__main__":
                         (observed_pred.mean - y_scaled[val_idx].flatten()) ** 2
                     )
                     print(kernel_class.__name__, fold, "(val)", mse_val.item())
-        for (
-            name,
-            parameter,
-            constraint,
-        ) in model_best.named_parameters_and_constraints():
-            print(name.rsplit("raw")[-1][1:], constraint.transform(parameter).tolist())
 
-        model_best.eval()
-        if cv:
-            # X_scaled_val = X_scaled[val_idx]
-            # y_scaled_val = y_scaled[val_idx]
-            X_scaled_val = X_scaled
-            y_scaled_val = y_scaled
-        else:
-            X_scaled_val = X_scaled
-            y_scaled_val = y_scaled
+                    val_error_list.append(mse_val.item())
 
-        with torch.no_grad(), gpytorch.settings.fast_pred_var():
-            observed_pred = likelihood(model_best(X_scaled_val))
-            # observed_pred = likelihood(model_best(X_scaled[test_idx]))
-            # observed_pred = likelihood(model_best(X_scaled[val_idx]))
-            # observed_pred = likelihood(model_best(X_scaled[train_idx_best]))
+                    with torch.no_grad(), gpytorch.settings.fast_pred_var():
+                        observed_pred = likelihood(model(X_scaled))
 
-        mse_val = torch.mean((observed_pred.mean - y_scaled_val.flatten()) ** 2)
-        # mse_val = torch.mean((observed_pred.mean - y_scaled[test_idx].flatten()) ** 2)
-        # mse_val = torch.mean((observed_pred.mean - y_scaled[val_idx].flatten()) ** 2)
-        # mse_val = torch.mean(
-        #     (observed_pred.mean - y_scaled[train_idx_best].flatten()) ** 2
-        # )
-        print(kernel_class.__name__, "val", mse_val.item())
+                    mse_total = torch.mean(
+                        (observed_pred.mean - y_scaled.flatten()) ** 2
+                    )
+                    print(kernel_class.__name__, "(total)", mse_total.item())
+                    total_error_list.append(mse_total.item())
 
-    end_total = time.time()
-    print("Total time:", end_total - start_total)
+                    for (
+                        name,
+                        parameter,
+                        constraint,
+                    ) in model.named_parameters_and_constraints():
+                        if "noise" in name:
+                            rpd_noise_val = constraint.transform(parameter).item()
+                    rpd_noise_list.append(rpd_noise_val)
+
+            df = pd.DataFrame(
+                {
+                    "val": val_error_list,
+                    "test": test_error_list,
+                    "total": total_error_list,
+                    "rpd_noise": rpd_noise_list,
+                }
+            )
+            df.to_csv(
+                f"datasets/val_test_total_rpdnoise_{kernel_class.__name__}_{['noiseless', 'noisy'][int(noisy)]}.csv"
+            )
+
+            # for (
+            #     name,
+            #     parameter,
+            #     constraint,
+            # ) in model_best.named_parameters_and_constraints():
+            #     if "noise" in name:
+            #         print(
+            #             name.rsplit("raw")[-1][1:], constraint.transform(parameter).tolist()
+            #         )
+
+            # model_best.eval()
+            # if cv:
+            #     # X_scaled_val = X_scaled[val_idx]
+            #     # y_scaled_val = y_scaled[val_idx]
+            #     X_scaled_val = X_scaled
+            #     y_scaled_val = y_scaled
+            # else:
+            #     X_scaled_val = X_scaled
+            #     y_scaled_val = y_scaled
+
+            # with torch.no_grad(), gpytorch.settings.fast_pred_var():
+            #     observed_pred = likelihood(model_best(X_scaled_val))
+            #     # observed_pred = likelihood(model_best(X_scaled[test_idx]))
+            #     # observed_pred = likelihood(model_best(X_scaled[val_idx]))
+            #     # observed_pred = likelihood(model_best(X_scaled[train_idx_best]))
+
+            # mse_val = torch.mean((observed_pred.mean - y_scaled_val.flatten()) ** 2)
+            # # mse_val = torch.mean((observed_pred.mean - y_scaled[test_idx].flatten()) ** 2)
+            # # mse_val = torch.mean((observed_pred.mean - y_scaled[val_idx].flatten()) ** 2)
+            # # mse_val = torch.mean(
+            # #     (observed_pred.mean - y_scaled[train_idx_best].flatten()) ** 2
+            # # )
+            # print(kernel_class.__name__, "val", mse_val.item())
+
+        end_total = time.time()
+        print("Total time:", end_total - start_total)
 
     # for fold, (train_idx, test_idx) in enumerate(zip(train_idx_list, test_idx_list)):
     #     mse = torch.mean(y_scaled[test_idx].flatten() ** 2)
