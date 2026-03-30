@@ -124,7 +124,10 @@ if __name__ == "__main__":
         RQKernel,
     ]
 
-    for noisy in [True, False]:
+    for noisy in [
+        # True,
+        False,
+    ]:
         start_total = time.time()
 
         for kernel_class in kernel_class_list:
@@ -207,8 +210,8 @@ if __name__ == "__main__":
 
             df = pd.DataFrame(
                 {
-                    "val": val_error_list,
-                    "test": test_error_list,
+                    "val": test_error_list,
+                    "test": val_error_list,
                     "total": total_error_list,
                     "rpd_noise": rpd_noise_list,
                 }
