@@ -291,9 +291,9 @@ if __name__ == "__main__":
                     cmap="viridis",
                 )
                 # ax.set_xlabel(f"${names[4]}$")
-                ax.set_xlabel(r"$d_{rep1}$")
-                # ax.set_ylabel(f"${names[3]}$")
                 ax.set_ylabel(r"$t_{ubm}$")
+                # ax.set_ylabel(f"${names[3]}$")
+                ax.set_xlabel(r"$d_{rep1}$")
                 ax.set_zlabel("Max. conc.")
                 ax.view_init(20, 45)
                 ax.invert_xaxis()
