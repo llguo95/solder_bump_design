@@ -1,14 +1,18 @@
 import time
 
 import gpytorch
+from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import torch
 from gpytorch.kernels import MaternKernel, RBFKernel, RQKernel
+
 from sklearn.preprocessing import StandardScaler
 
 from gp import train
+
+MaternKernel, RBFKernel, RQKernel
 
 torch.manual_seed(1)
 np.random.seed(1)
@@ -58,17 +62,17 @@ if __name__ == "__main__":
 
     # plt.show()
 
-    X = df_data[
-        [
-            "d_pad",
-            "t_pad",
-            "d_us",
-            "d_rep1",
-            "t_ubm",
-            "del_d",
-            "h_ball",
-        ]
-    ].values
+    names = [
+        "d_pad",
+        "t_pad",
+        "d_us",
+        "d_rep1",
+        "t_ubm",
+        "del_d",
+        "h_ball",
+    ]
+
+    X = df_data[names].values
 
     X_bounds = np.array(
         [
@@ -119,8 +123,8 @@ if __name__ == "__main__":
             train_idx_list.append(train_idx)
 
     kernel_class_list = [
-        MaternKernel,
-        RBFKernel,
+        # MaternKernel,
+        # RBFKernel,
         RQKernel,
     ]
 
@@ -173,6 +177,7 @@ if __name__ == "__main__":
 
                 if mse < mse_min:
                     model_best = model
+                    likelihood_best = likelihood
                     train_idx_best = train_idx
                     mse_min = mse.item()
                 print(kernel_class.__name__, fold, mse.item())
@@ -207,6 +212,97 @@ if __name__ == "__main__":
                         if "noise" in name:
                             rpd_noise_val = constraint.transform(parameter).item()
                     rpd_noise_list.append(rpd_noise_val)
+
+            visualize_best_model = True
+            if visualize_best_model:
+                x_grid = torch.linspace(0, 1, 50)
+                y_grid = torch.linspace(0, 1, 50)
+                xx, yy = torch.meshgrid(x_grid, y_grid)
+                grid_list = torch.stack((xx, yy)).T.reshape(-1, 2)
+
+                # for const_param_value in [
+                #     # 0.25,
+                #     0.5,
+                #     # 0.75,
+                # ]:
+                #     fig, axs = plt.subplots(ncols=7, nrows=7, figsize=(12, 12))
+
+                #     for i in range(7):
+                #         for j in range(7):
+                #             if i >= j:
+                #                 continue
+
+                #             constant_parameters = torch.tile(
+                #                 const_param_value * torch.ones((1, 7)),
+                #                 dims=(50 * 50, 1),
+                #             )
+                #             constant_parameters[:, i] = grid_list[:, 0]
+                #             constant_parameters[:, j] = grid_list[:, 1]
+
+                #             model_best.eval()
+                #             likelihood_best.eval()
+                #             # Make predictions by feeding model through likelihood
+                #             with torch.no_grad(), gpytorch.settings.fast_pred_var():
+                #                 observed_pred = likelihood_best(
+                #                     model_best(constant_parameters)
+                #                 )
+
+                #             # observed_pred.mean.reshape(50, 50).numpy()
+
+                #             ax = axs[i, j]
+                #             ax.contourf(
+                #                 xx.numpy(),
+                #                 yy.numpy(),
+                #                 observed_pred.mean.reshape(50, 50).numpy(),
+                #                 cmap="viridis",
+                #                 levels=100,
+                #             )
+                #             ax.set_xlabel(names[j])
+                #             ax.set_ylabel(names[i])
+                #     fig.suptitle(
+                #         f"{kernel_class.__name__}, {const_param_value}, {['noiseless', 'noisy'][int(noisy)]}"
+                #     )
+                #     fig.tight_layout()
+
+                constant_parameters = torch.tile(
+                    0.5 * torch.ones((1, 7)), dims=(50 * 50, 1)
+                )
+                constant_parameters[:, 3] = grid_list[:, 0]
+                constant_parameters[:, 4] = grid_list[:, 1]
+
+                model_best.eval()
+                likelihood_best.eval()
+                # Make predictions by feeding model through likelihood
+                with torch.no_grad(), gpytorch.settings.fast_pred_var():
+                    observed_pred = likelihood_best(model_best(constant_parameters))
+
+                # observed_pred.mean.reshape(50, 50).numpy()
+
+                xx_plot = X_bounds[4, 0] + xx * (X_bounds[4, 1] - X_bounds[4, 0])
+                yy_plot = X_bounds[3, 0] + yy * (X_bounds[3, 1] - X_bounds[3, 0])
+
+                fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+                ax.plot_surface(
+                    xx_plot.numpy(),
+                    yy_plot.numpy(),
+                    scaler.inverse_transform(observed_pred.mean[:, None]).reshape(
+                        50, 50
+                    ),
+                    cmap="viridis",
+                )
+                # ax.set_xlabel(f"${names[4]}$")
+                ax.set_xlabel(r"$d_{rep1}$")
+                # ax.set_ylabel(f"${names[3]}$")
+                ax.set_ylabel(r"$t_{ubm}$")
+                ax.set_zlabel("Max. conc.")
+                ax.view_init(20, 45)
+                ax.invert_xaxis()
+                fig.tight_layout()
+                fig.savefig(
+                    f"img/solderball_{kernel_class.__name__}_{['noiseless', 'noisy'][int(noisy)]}.svg"
+                )
+
+                # plt.show()
 
             df = pd.DataFrame(
                 {
@@ -261,6 +357,7 @@ if __name__ == "__main__":
     #     mse = torch.mean(y_scaled[test_idx].flatten() ** 2)
     #     print("Naive", fold, mse.item())
 
+    plt.show()
     pass
 
 else:
