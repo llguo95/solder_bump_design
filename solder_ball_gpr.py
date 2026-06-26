@@ -209,6 +209,10 @@ if __name__ == "__main__":
                         parameter,
                         constraint,
                     ) in model.named_parameters_and_constraints():
+                        # print(
+                        #     name.rsplit("raw")[-1][1:],
+                        #     constraint.transform(parameter).tolist(),
+                        # )
                         if "noise" in name:
                             rpd_noise_val = constraint.transform(parameter).item()
                     rpd_noise_list.append(rpd_noise_val)
@@ -277,6 +281,16 @@ if __name__ == "__main__":
                     observed_pred = likelihood_best(model_best(constant_parameters))
 
                 # observed_pred.mean.reshape(50, 50).numpy()
+
+                # for (
+                #     name,
+                #     parameter,
+                #     constraint,
+                # ) in model_best.named_parameters_and_constraints():
+                #     print(
+                #         name.rsplit("raw")[-1][1:],
+                #         constraint.transform(parameter).tolist(),
+                #     )
 
                 xx_plot = X_bounds[4, 0] + xx * (X_bounds[4, 1] - X_bounds[4, 0])
                 yy_plot = X_bounds[3, 0] + yy * (X_bounds[3, 1] - X_bounds[3, 0])
